@@ -1,15 +1,52 @@
 import discord
-import asyncio
+from discord import *
+from discord.ext import commands
 import configparser
 
 server_channels = {} # Server channel cache
-client = discord.Client()
+# client = discord.Client()
 
 config = configparser.ConfigParser()
 config.read('config.ini')
 
 channel_name = config.get('Attributes', 'CHANNEL_NAME')
 BOT_TOKEN = config.get('Attributes', 'BOT_TOKEN')
+
+BOT_PREFIX = '~~'
+
+# Setting the bot's prefix to $
+client = commands.Bot(command_prefix=BOT_PREFIX)
+
+# For custom help command, remove the existing one.
+client.remove_command('help')
+
+
+class Main_Commands():
+
+    def __init(self, client):
+        self.client = client
+
+
+@client.event
+async def on_ready():
+    await client.change_presence(activity=Game(name="~~help"))
+    print('\nLogged in as')
+    print(client.user.name)
+    print('\n')
+
+
+@client.command(pass_context=True)
+async def help(ctx):
+
+    embed = discord.Embed(colour=discord.Colour.red())
+
+    embed.set_author(
+        name="This bot was created for the sole purpose of event-logging,\n"
+             "Original author:  Beskhue\nForked by: briansukhnandan\n"
+             '\nAdmins: Set up a text-channel named "voice-log". \n'
+             "Obviously give the Bot permissions to access the channel if necessary. \n")
+
+    await ctx.send(embed=embed)
 
 
 def find_channel(channel_object, refresh = False):
@@ -34,14 +71,6 @@ def find_channel(channel_object, refresh = False):
 
 
 @client.event
-async def on_ready():
-    print('\nLogged in as')
-    print(client.user.name)
-    print(client.user.id)
-    print('\n')
-
-
-@client.event
 async def on_voice_state_update(member, member_before_voice_state, member_after_voice_state):
     """
     Called when the voice state of a member on a server changes.
@@ -63,15 +92,15 @@ async def on_voice_state_update(member, member_before_voice_state, member_after_
     if voice_channel_before is None:
         # The member was not on a voice channel before the change
         # Discord api sets voice_channel to None if there was no channel to begin with.
-        msg = "**%s#%s** joined voice channel **_%s_**" % (member.name, member.discriminator, voice_channel_after.name)
+        msg = "**\'%s#%s\'** joined voice channel **\'_%s_\'**" % (member.name, member.discriminator, voice_channel_after.name)
     else:
         # The member was on a voice channel before the change
         if voice_channel_after is None:
             # The member is no longer on a voice channel after the change
-            msg = "**%s#%s** left voice channel **_%s_**" % (member.name, member.discriminator, voice_channel_before.name)
+            msg = "**\'%s#%s\'** left voice channel **\'_%s_\'**" % (member.name, member.discriminator, voice_channel_before.name)
         else:
             # The member is still on a voice channel after the change
-            msg = "**%s#%s** switched from voice channel **_%s_** to **_%s_**" % (member.name, member.discriminator,
+            msg = "**\'%s#%s\'** switched from voice channel **\'_%s_\'** to **\'_%s_\'**" % (member.name, member.discriminator,
                                                                      voice_channel_before.name, voice_channel_after.name)
     
     # Try to log the voice event to the channel
