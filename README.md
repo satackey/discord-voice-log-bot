@@ -25,3 +25,12 @@ Run the bot by executing:
 
 ```python3.6 src/main.py```
 after installing requirements.
+
+## Usage
+Proceed to your Discord server and create a text channel named 'voice-log' and give the appropriate permissions
+to the Bot and Mods/Admins to access that text channel.
+
+## Don't want to build from source?
+I have the bot hosted on one of my private servers for usage of anyone who needs a quick VC logger for their
+server.
+https://discordapp.com/oauth2/authorize?client_id=611673814325133404&scope=bot&permissions=0
