@@ -11,6 +11,7 @@ config.read('config.ini')
 
 channel_name = config.get('Attributes', 'CHANNEL_NAME')
 BOT_TOKEN = config.get('Attributes', 'BOT_TOKEN')
+PLAYING_GAME = config.get('Attributes', 'PLAYING_GAME')
 
 BOT_PREFIX = '~~'
 
@@ -29,7 +30,7 @@ class Main_Commands():
 
 @client.event
 async def on_ready():
-    await client.change_presence(activity=Game(name="~~help"))
+    await client.change_presence(activity=Game(name=PLAYING_GAME))
     print('\nLogged in as')
     print(client.user.name)
     print('\n')
@@ -69,6 +70,9 @@ def find_channel(channel_object, refresh = False):
             
     return None
 
+@client.event
+async def on_member_update(before, after):
+    print(before, after)
 
 @client.event
 async def on_voice_state_update(member, member_before_voice_state, member_after_voice_state):
@@ -86,22 +90,30 @@ async def on_voice_state_update(member, member_before_voice_state, member_after_
     voice_channel_after = member_after_voice_state.channel
     
     if voice_channel_before == voice_channel_after:
-        # No change
+        if member_before_voice_state.self_deaf != member_after_voice_state.self_deaf:
+            changed_after = 'deafened' if member_after_voice_state.self_deaf else 'undeafened'
+            await channel.send(f"{member.mention} {changed_after} theirself")
+            return
+
+        if member_before_voice_state.self_mute != member_after_voice_state.self_mute:
+            changed_after = 'muted' if member_after_voice_state.self_mute else 'unmuted'
+            await channel.send(f"{member.mention} {changed_after} theirself")
+            return
         return
 
     if voice_channel_before is None:
+        print(voice_channel_after)
         # The member was not on a voice channel before the change
         # Discord api sets voice_channel to None if there was no channel to begin with.
-        msg = "**\'%s#%s\'** joined voice channel **\'_%s_\'**" % (member.name, member.discriminator, voice_channel_after.name)
+        msg = "%s joined voice channel <#%s>" % (member.mention, voice_channel_after.id)
     else:
         # The member was on a voice channel before the change
         if voice_channel_after is None:
             # The member is no longer on a voice channel after the change
-            msg = "**\'%s#%s\'** left voice channel **\'_%s_\'**" % (member.name, member.discriminator, voice_channel_before.name)
+            msg = "%s left voice channel <#%s>" % (member.mention, voice_channel_before.id)
         else:
             # The member is still on a voice channel after the change
-            msg = "**\'%s#%s\'** switched from voice channel **\'_%s_\'** to **\'_%s_\'**" % (member.name, member.discriminator,
-                                                                     voice_channel_before.name, voice_channel_after.name)
+            msg = "%s switched from voice channel <#%s> to <#%s>" % (member.mention, voice_channel_before.id, voice_channel_after.id)
     
     # Try to log the voice event to the channel
     try:
