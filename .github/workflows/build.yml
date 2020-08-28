@@ -1,0 +1,123 @@
+name: Build Docker image
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: actions/github-script@v1
+      id: set_matrix
+      with:
+        script: |
+          const archs = [
+            `linux/amd64`,
+            `linux/arm/v7`,
+            `linux/arm64/v8`
+          ]
+
+          const matrix = {
+            arch: archs,
+            include: []
+          }
+
+          const timestamp = `${Date.now()}`
+          const branch = '${{ github.ref }}'.replace(/refs\/heads\//g, '').replace(/\//g, '_')
+
+          archs.forEach(arch => {
+            const add = {}
+            add.arch = arch
+            add.snake_arch = arch.replace(/\//g, '_')
+            add.timestamp = timestamp
+            add.cache_path = `.docker_cache`
+
+            add.tmp_repo = `quay.io/satackey/discord-voice-log-bot-tmp`
+            add.tmp_tag = `${add.snake_arch}_${branch}_${timestamp}_${{ github.sha }}`
+
+            add.tmp_repotag = `${add.tmp_repo}:${add.tmp_tag}`
+            matrix.include.push(add)
+          })
+
+          core.info(JSON.stringify(matrix))
+
+          core.setOutput(`tmp_tags_for_creating_manifest`, matrix.include.map(
+            arch => `-a ${arch.tmp_repotag}`
+          ).join(' '))
+
+          return matrix
+
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.result }}
+      tmp_tags_for_creating_manifest: ${{ steps.set_matrix.outputs.tmp_tags_for_creating_manifest }}
+      multiarch_repotag: quay.io/satackey/discord-voice-log-bot:latest
+
+  build:
+    runs-on: ubuntu-latest
+    needs: discover
+    strategy:
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+    - name: Set up Docker Buildx
+      uses: crazy-max/ghaction-docker-buildx@v1
+      with:
+        buildx-version: latest
+
+    - uses: actions/checkout@v2
+
+    - name: Login to Quay.io
+      run: |
+        docker login quay.io -u ${{ secrets.QUAYIO_USERNAME }} -p ${{ secrets.QUAYIO_TOKEN }}
+
+    - name: Restore Docker build cache
+      uses: actions/cache@v1
+      with:
+        path: ${{ matrix.cache_path }}
+        key: testing01-docker-buildx-${{ matrix.snake_arch }}-${{ matrix.timestamp }}-${{ github.sha }}
+        restore-keys: |
+          testing01-docker-buildx-${{ matrix.snake_arch }}-
+
+    - name: Build Docker image
+      run: |
+        set -eux
+        DOCKER_ARG_CACHE_FROM=""
+        if [ -e ${{ matrix.cache_path }}/index.json ];then
+          DOCKER_ARG_CACHE_FROM="--cache-from type=local,src=${{ matrix.cache_path }}"
+        fi
+
+        docker buildx build \
+          --platform ${{ matrix.arch }} \
+          --output "type=docker" \
+          --file Dockerfile \
+          $DOCKER_ARG_CACHE_FROM \
+          --cache-to type=local,mode=max,dest=${{ matrix.cache_path }} \
+          -t ${{ matrix.tmp_repotag }} \
+          .
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ matrix.tmp_repotag }}
+
+  create_tag:
+    runs-on: ubuntu-latest
+    needs: [discover, build]
+    env:
+      DOCKER_CLI_EXPERIMENTAL: enabled
+    steps:
+    - name: Login to Quay.io
+      run: |
+        docker login quay.io -u ${{ secrets.QUAYIO_USERNAME }} -p ${{ secrets.QUAYIO_TOKEN }}
+
+    - name: Create multi-arch manifest
+      run: |
+        docker manifest create \
+          ${{ needs.discover.outputs.multiarch_repotag }} \
+          ${{ needs.discover.outputs.tmp_tags_for_creating_manifest }}
+
+    - name: Push to Quay.io
+      run: |
+        docker manifest push ${{ needs.discover.outputs.multiarch_repotag }}
