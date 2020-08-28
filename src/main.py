@@ -7,7 +7,7 @@ server_channels = {} # Server channel cache
 # client = discord.Client()
 
 config = configparser.ConfigParser()
-config.read('config.ini')
+config.read('configs/config.ini')
 
 channel_name = config.get('Attributes', 'CHANNEL_NAME')
 BOT_TOKEN = config.get('Attributes', 'BOT_TOKEN')
